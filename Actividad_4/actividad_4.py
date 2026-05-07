@@ -114,7 +114,7 @@ def create_folder():
 ##########################################################################################################
 
 def check_credentials(event= None):
-    egela.check_credentials(username, password)
+    egela.check_credentials(username.get(), password.get())
 
 def on_selecting1(event):
     global selected_items1

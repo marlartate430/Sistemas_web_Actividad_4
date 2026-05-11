@@ -1,5 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
+import os
+
+# Get the directory of the current script
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FAVICON_PATH = os.path.join(BASE_DIR, 'favicon.ico')
 
 def center(win):
     win.update_idletasks()
@@ -22,7 +27,8 @@ def progress(tipo, title):
         popup = tk.Toplevel()
     popup.geometry('250x50')
     popup.title(title)
-    popup.iconbitmap('./favicon.ico')
+    if os.path.exists(FAVICON_PATH):
+        popup.iconbitmap(FAVICON_PATH)
     center(popup)
     label = tk.Label(popup, text=title)
     label.grid(row=0, column=0)

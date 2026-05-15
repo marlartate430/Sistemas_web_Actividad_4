@@ -15,6 +15,7 @@ server_addr = "localhost"
 server_port = 8070
 redirect_uri = "http://" + server_addr + ":" + str(server_port)
 
+
 class Dropbox:
     _access_token = ""
     _path = "/"
@@ -106,10 +107,10 @@ class Dropbox:
     def list_folder(self, msg_listbox):
         print("/list_folder")
         uri = 'https://api.dropboxapi.com/2/files/list_folder'
-        
+
         path = self._sanitize_path(self._path)
         print(f"\tListing path: '{path}'")
-        
+
         headers = {
             'Authorization': 'Bearer ' + self._access_token,
             'Content-Type': 'application/json'
@@ -123,9 +124,9 @@ class Dropbox:
             "include_mounted_folders": True,
             "include_non_downloadable_files": True
         }
-        
+
         response = requests.post(uri, headers=headers, json=data)
-        
+
         if response.status_code == 200:
             contenido_json = response.json()
             self._files = helper.update_listbox2(msg_listbox, self._path, contenido_json)
@@ -135,10 +136,10 @@ class Dropbox:
     def transfer_file(self, file_path, file_data):
         print("/upload")
         uri = 'https://content.dropboxapi.com/2/files/upload'
-        
+
         file_path = self._sanitize_path(file_path)
         print(f"\tUploading to: '{file_path}'")
-        
+
         argumentos_api = {
             "path": file_path,
             "mode": "overwrite",
@@ -146,15 +147,15 @@ class Dropbox:
             "mute": False,
             "strict_conflict": False
         }
-        
+
         headers = {
             'Authorization': 'Bearer ' + self._access_token,
             'Dropbox-API-Arg': json.dumps(argumentos_api),
             'Content-Type': 'application/octet-stream'
         }
-        
+
         response = requests.post(uri, headers=headers, data=file_data)
-        
+
         if response.status_code == 200:
             print(f"\tFile {file_path} uploaded successfully")
         else:
@@ -163,10 +164,10 @@ class Dropbox:
     def delete_file(self, file_path):
         print("/delete_file")
         uri = 'https://api.dropboxapi.com/2/files/delete_v2'
-        
+
         file_path = self._sanitize_path(file_path)
         print(f"\tDeleting: '{file_path}'")
-        
+
         headers = {
             'Authorization': 'Bearer ' + self._access_token,
             'Content-Type': 'application/json'
@@ -174,21 +175,96 @@ class Dropbox:
         data = {
             "path": file_path
         }
-        
+
         response = requests.post(uri, headers=headers, json=data)
-        
+
         if response.status_code == 200:
             print(f"\tFile/Folder {file_path} deleted successfully")
         else:
             print(f"\tError deleting file/folder ({response.status_code}): {response.text}")
 
+    def download_file(self, file_path, destino_local):
+        print("/download_file")
+        uri = 'https://content.dropboxapi.com/2/files/download'
+
+        file_path = self._sanitize_path(file_path)
+        print(f"\tDownloading: '{file_path}' -> '{destino_local}'")
+
+        argumentos_api = {"path": file_path}
+
+        headers = {
+            'Authorization': 'Bearer ' + self._access_token,
+            'Dropbox-API-Arg': json.dumps(argumentos_api),
+        }
+
+        response = requests.post(uri, headers=headers)
+
+        if response.status_code == 200:
+            with open(destino_local, 'wb') as f:
+                f.write(response.content)
+            print(f"\tFile saved to '{destino_local}'")
+            return True
+        else:
+            print(f"\tError downloading file ({response.status_code}): {response.text}")
+            return False
+
+    def share_file(self, file_path):
+        print("/share_file")
+        uri = 'https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings'
+
+        file_path = self._sanitize_path(file_path)
+        print(f"\tCreating shared link for: '{file_path}'")
+
+        headers = {
+            'Authorization': 'Bearer ' + self._access_token,
+            'Content-Type': 'application/json'
+        }
+        data = {
+            "path": file_path,
+            "settings": {
+                "requested_visibility": "public"
+            }
+        }
+
+        response = requests.post(uri, headers=headers, json=data)
+
+        if response.status_code == 200:
+            url = response.json().get('url', '')
+            print(f"\tShared link: {url}")
+            return url
+        elif response.status_code == 409:
+            # El link ya existe, lo conseguimos de nuevo
+            error_data = response.json()
+            existing_url = (error_data
+                            .get('error', {})
+                            .get('shared_link_already_exists', {})
+                            .get('metadata', {})
+                            .get('url', ''))
+            if existing_url:
+                print(f"\tExisting shared link: {existing_url}")
+                return existing_url
+            # Si no viene en el error, llamamos a list_shared_links
+            uri_list = 'https://api.dropboxapi.com/2/sharing/list_shared_links'
+            resp2 = requests.post(uri_list, headers=headers, json={"path": file_path, "direct_only": True})
+            if resp2.status_code == 200:
+                links = resp2.json().get('links', [])
+                if links:
+                    url = links[0].get('url', '')
+                    print(f"\tRecovered existing shared link: {url}")
+                    return url
+            print(f"\tCould not retrieve existing link: {response.text}")
+            return None
+        else:
+            print(f"\tError creating shared link ({response.status_code}): {response.text}")
+            return None
+
     def create_folder(self, path):
         print("/create_folder")
         uri = 'https://api.dropboxapi.com/2/files/create_folder_v2'
-        
+
         path = self._sanitize_path(path)
         print(f"\tCreating folder: '{path}'")
-        
+
         headers = {
             'Authorization': 'Bearer ' + self._access_token,
             'Content-Type': 'application/json'
@@ -197,9 +273,9 @@ class Dropbox:
             "path": path,
             "autorename": False
         }
-        
+
         response = requests.post(uri, headers=headers, json=data)
-        
+
         if response.status_code == 200:
             print(f"\tFolder {path} created successfully")
         else:

@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 import tkinter as tk
+from tkinter import messagebox
 import os
 import eGela
 import Dropbox
@@ -31,6 +32,11 @@ def make_listbox(messages_frame):
     return msg_listbox
 
 def transfer_files():
+    # Guardia: no hacer nada si no hay ningún PDF seleccionado en eGela
+    if not selected_items1:
+        tk.messagebox.showwarning("Aviso", "Selecciona al menos un PDF de la lista de eGela.")
+        return
+
     popup, progress_var, progress_bar = helper.progress("transfer_file", "Transfering files...")
     progress = 0
     progress_var.set(progress)
@@ -62,6 +68,65 @@ def transfer_files():
     popup.destroy()
     dropbox.list_folder(msg_listbox2)
     msg_listbox2.yview(tk.END)
+
+def download_files():
+    if not selected_items2:
+        return
+    for each in selected_items2:
+        selected_file = dropbox._files[each]
+        if selected_file['.tag'] != 'file':
+            continue  # no descargar carpetas ni ".."
+        if dropbox._path == "/":
+            path = "/" + selected_file['name']
+        else:
+            path = dropbox._path + "/" + selected_file['name']
+        destino_local = os.path.join(os.path.expanduser("~"), "Downloads", selected_file['name'])
+        try:
+            ok = dropbox.download_file(path, destino_local)
+            if ok:
+                tk.messagebox.showinfo("Download", f"Archivo guardado en:\n{destino_local}")
+            else:
+                tk.messagebox.showerror("Download", f"Error al descargar:\n{selected_file['name']}")
+        except Exception as e:
+            print(f"Exception al descargar {selected_file['name']}: {e}")
+            tk.messagebox.showerror(
+                "Download",
+                f"No se puede descargar '{selected_file['name']}'.\n"
+                f"Asegúrate de que el archivo existe en Dropbox.\n\n"
+                f"Detalle: {e}"
+            )
+
+def share_file():
+    if not selected_items2:
+        return
+    each = selected_items2[0]  # compartir sólo el primero seleccionado
+    selected_file = dropbox._files[each]
+    if selected_file['.tag'] != 'file':
+        tk.messagebox.showwarning("Share", "Selecciona un archivo (no una carpeta) para compartir.")
+        return
+    if dropbox._path == "/":
+        path = "/" + selected_file['name']
+    else:
+        path = dropbox._path + "/" + selected_file['name']
+    url = dropbox.share_file(path)
+    if url:
+        # Convertir a link directo cambiando dl=0 -> dl=1
+        url_direct = url.replace("dl=0", "dl=1")
+        win = tk.Toplevel(newroot)
+        win.title("Shareable Link")
+        win.geometry("520x110")
+        helper.center(win)
+        tk.Label(win, text="Enlace para compartir:").pack(pady=(10, 2))
+        entry = tk.Entry(win, width=70)
+        entry.insert(0, url_direct)
+        entry.config(state="readonly")
+        entry.pack(padx=10)
+        tk.Button(win, text="Copiar al portapapeles",
+                  command=lambda: [newroot.clipboard_clear(),
+                                   newroot.clipboard_append(url_direct),
+                                   tk.messagebox.showinfo("Copiado", "¡Link copiado al portapapeles!")]).pack(pady=8)
+    else:
+        tk.messagebox.showerror("Share", "No se pudo generar el enlace.")
 
 def delete_files():
     popup, progress_var, progress_bar = helper.progress("delete_file", "Deleting files...")
@@ -258,6 +323,10 @@ button2 = tk.Button(frame2, borderwidth=4,  background="#C6185C",fg="white", tex
 button2.pack(padx=2, pady=2)
 button3 = tk.Button(frame2, borderwidth=4, background="#7C86FF",fg="white", text="Create folder", width=10, pady=8, command=create_folder)
 button3.pack(padx=2, pady=2)
+button4 = tk.Button(frame2, borderwidth=4, background="#2ECC71", fg="white", text="Download", width=10, pady=8, command=download_files)
+button4.pack(padx=2, pady=2)
+button5 = tk.Button(frame2, borderwidth=4, background="#F39C12", fg="white", text="Share", width=10, pady=8, command=share_file)
+button5.pack(padx=2, pady=2)
 frame2.grid(row=1, column=3,  ipadx=10, ipady=10)
 
 for each in pdfs:
